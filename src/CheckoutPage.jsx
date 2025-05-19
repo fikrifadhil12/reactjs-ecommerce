@@ -21,6 +21,8 @@ const CheckoutPage = () => {
   const [errors, setErrors] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const API_URL = process.env.REACT_APP_API_URL;
 
   const subtotal = cartItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -62,19 +64,47 @@ const CheckoutPage = () => {
     setIsProcessing(true);
 
     try {
-      // Simulasi proses pembayaran
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Get token from localStorage
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
 
-      // Tampilkan popup sukses
+      const response = await fetch(`${API_URL}/checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          paymentMethod,
+          cartItems,
+          totalAmount: subtotal,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Checkout failed");
+      }
+
+      // Save the order ID for display
+      setOrderId(data.orderId);
+
+      // Show success popup
       setShowSuccessPopup(true);
 
-      // Setelah 3 detik, kembali ke dashboard
+      // Redirect after 3 seconds
       setTimeout(() => {
-        navigate("/dashboard"); // Kembali ke dashboard
+        navigate("/dashboard");
       }, 3000);
     } catch (error) {
-      console.error("Error:", error);
-      alert("Terjadi kesalahan. Silakan coba lagi.");
+      console.error("Checkout error:", error);
+      setErrors({
+        general: error.message || "Terjadi kesalahan. Silakan coba lagi.",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -115,6 +145,12 @@ const CheckoutPage = () => {
             Lengkapi informasi pengiriman dan pembayaran
           </p>
         </div>
+
+        {errors.general && (
+          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
+            {errors.general}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Form Section */}
@@ -274,6 +310,7 @@ const CheckoutPage = () => {
 
               <div className="space-y-3">
                 <button
+                  type="button"
                   onClick={() => handlePaymentMethodChange("creditCard")}
                   className={`w-full p-4 rounded-xl border-2 flex items-center ${
                     paymentMethod === "creditCard"
@@ -311,6 +348,7 @@ const CheckoutPage = () => {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handlePaymentMethodChange("paypal")}
                   className={`w-full p-4 rounded-xl border-2 flex items-center ${
                     paymentMethod === "paypal"
@@ -526,7 +564,9 @@ const CheckoutPage = () => {
                   <p className="text-sm text-gray-600">
                     No. Pesanan:{" "}
                     <span className="font-medium text-purple-600">
-                      ORD-{Math.floor(Math.random() * 1000000)}
+                      {orderId
+                        ? `ORD-${orderId}`
+                        : `ORD-${Math.floor(Math.random() * 1000000)}`}
                     </span>
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
